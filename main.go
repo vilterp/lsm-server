@@ -6,17 +6,22 @@ import (
 	"net/http"
 	"os"
 	"sync"
+
+	"github.com/vilterp/kv-server/server"
 )
 
 type kvServer struct {
 	contents map[string]string
 	mutex sync.Mutex
 
+	wal *server.KVWriter
+
 	mux http.ServeMux
 }
 
-func NewKVServer() *kvServer {
+func NewKVServer(walWriter *server.KVWriter) *kvServer {
 	s := &kvServer{
+		wal: walWriter,
 		contents: map[string]string{},
 		mux: http.ServeMux{},
 	}
@@ -30,6 +35,10 @@ func (k *kvServer) handleSet(w http.ResponseWriter, req *http.Request) {
 	defer k.mutex.Unlock()
 
 	// validate the input: reject if more than one value for a key
+	if len(req.URL.Query()) != 1 {
+		http.Error(w, fmt.Sprintf("expecting exactly one key"), http.StatusBadRequest)
+		return
+	}
 	for _, value := range req.URL.Query() {
 		if len(value) > 1 {
 			http.Error(w, fmt.Sprintf("multiple values for key"), http.StatusBadRequest)
@@ -40,6 +49,10 @@ func (k *kvServer) handleSet(w http.ResponseWriter, req *http.Request) {
 	query := req.URL.Query()
 	for key, value := range query {
 		k.contents[key] = value[0]
+		if err := k.wal.AppendKVPair([]byte(key), []byte(value[0])); err != nil {
+			http.Error(w, fmt.Sprintf("error writing key: %s", err), http.StatusInternalServerError)
+			return
+		}
 	}
 }
 
@@ -65,7 +78,7 @@ func (k *kvServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 }
 
 func main() {
-	server := NewKVServer()
+	// get env vars
 
 	host, found := os.LookupEnv("HOST")
 	if !found {
@@ -75,9 +88,20 @@ func main() {
 	if !found {
 		port = "9999"
 	}
+	file, found := os.LookupEnv("FILE")
+	if !found {
+		file = "wal.kv"
+	}
+
+	// construct server
+	walWriter, err := server.NewKVWriter(file)
+	if err != nil {
+		log.Fatal("error opening wal:", err)
+	}
+	serv := NewKVServer(walWriter)
 
 	log.Printf("listening on %s:%s", host, port)
-	if err := http.ListenAndServe(fmt.Sprintf("%s:%s", host, port), server); err != nil {
+	if err := http.ListenAndServe(fmt.Sprintf("%s:%s", host, port), serv); err != nil {
 		log.Fatal("error listening:", err)
 	}
 }
