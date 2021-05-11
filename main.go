@@ -66,7 +66,13 @@ func (k *kvServer) handleGet(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	_, err := fmt.Fprintln(w, k.contents[keys[0]])
+	value, ok := k.contents[keys[0]]
+	if !ok {
+		http.NotFound(w, req)
+		return
+	}
+
+	_, err := fmt.Fprintln(w, value)
 	if err != nil {
 		log.Println("error writing response:", err)
 	}
