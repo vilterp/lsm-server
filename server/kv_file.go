@@ -16,36 +16,53 @@ type KVPair struct {
 type KVFile struct {
 	encoder *gob.Encoder
 	file    *os.File
+	pos     int64
 }
 
 func NewKVFile(path string) (*KVFile, error) {
-	file, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0o644)
+	file, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE, 0o644)
 	if err != nil {
 		return nil, err
 	}
-	return &KVFile{
+	kvf := &KVFile{
 		file:    file,
 		encoder: gob.NewEncoder(file),
-	}, nil
+	}
+	if err := kvf.updatePos(); err != nil {
+		return nil, err
+	}
+	return kvf, nil
 }
 
-func (kvf *KVFile) AppendKVPair(key []byte, value []byte) error {
-	if _, err := kvf.file.Seek(0, 2); err != nil {
-		return nil
+func (kvf *KVFile) updatePos() error {
+	pos, err := kvf.file.Seek(0, io.SeekCurrent)
+	if err != nil {
+		return err
 	}
+	kvf.pos = pos
+	return nil
+}
 
+// AppendKVPair returns the offset in the file it starts at
+func (kvf *KVFile) AppendKVPair(key []byte, value []byte) (int64, error) {
+	startPos := kvf.pos
 	if err := kvf.encoder.Encode(KVPair{
 		Key:   key,
 		Value: value,
 	}); err != nil {
-		return err
+		return 0, err
 	}
-	return nil
+	if err := kvf.updatePos(); err != nil {
+		return 0, err
+	}
+	return startPos, nil
 }
 
 // === reader ===
 
 type KVFileReader struct {
+	file    *os.File
+	pos     int64
 	decoder *gob.Decoder
 }
 
@@ -55,17 +72,38 @@ func (kvf *KVFile) GetReader() (*KVFileReader, error) {
 		return nil, err
 	}
 	return &KVFileReader{
+		file:    file,
+		pos:     0,
 		decoder: gob.NewDecoder(file),
 	}, nil
 }
 
-func (r *KVFileReader) Next() (*KVPair, error) {
+// Next returns the item (or nil if we're at the end), the size in
+// bytes of the item on disk, or an error if there was one
+func (r *KVFileReader) Next() (*KVPair, int64, error) {
+	startingPos := r.pos
+
 	var out KVPair
 	if err := r.decoder.Decode(&out); err != nil {
 		if err == io.EOF {
-			return nil, nil
+			return nil, 0, nil
 		}
-		return nil, err
+		return nil, 0, err
 	}
-	return &out, nil
+
+	newPos, err := r.file.Seek(0, io.SeekCurrent)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	size := newPos - startingPos
+	return &out, size, nil
+}
+
+func (r *KVFileReader) Seek(pos int64) error {
+	if _, err := r.file.Seek(pos, io.SeekStart); err != nil {
+		return err
+	}
+	r.pos = pos
+	return nil
 }
