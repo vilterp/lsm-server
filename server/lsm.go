@@ -142,6 +142,10 @@ func (lsm *LSM) flushMemtable() error {
 
 	// clear the memtable
 	lsm.memtable = map[string][]byte{}
-	// TODO: also clear the WAL?
+	if err := lsm.wal.Truncate(); err != nil {
+		return err
+	}
 	return nil
 }
+
+// TODO: compaction

@@ -58,6 +58,10 @@ func (kvf *KVFile) AppendKVPair(key []byte, value []byte) (int64, error) {
 	return startPos, nil
 }
 
+func (kvf *KVFile) Truncate() error {
+	return os.Truncate(kvf.file.Name(), 0)
+}
+
 // === reader ===
 
 type KVFileReader struct {
@@ -95,6 +99,7 @@ func (r *KVFileReader) Next() (*KVPair, int64, error) {
 	if err != nil {
 		return nil, 0, err
 	}
+	r.pos = newPos
 
 	size := newPos - startingPos
 	return &out, size, nil
