@@ -2,7 +2,9 @@ package server
 
 import (
 	"fmt"
+	"io/ioutil"
 	"log"
+	"path"
 	"sync"
 )
 
@@ -20,6 +22,7 @@ type LSM struct {
 func NewLSM(wal *KVFile, sstDir string) (*LSM, error) {
 	lsm := &LSM{
 		wal:      wal,
+		sstDir:   sstDir,
 		memtable: map[string][]byte{},
 	}
 	if err := lsm.loadWALIntoMemtable(); err != nil {
@@ -32,10 +35,26 @@ func NewLSM(wal *KVFile, sstDir string) (*LSM, error) {
 }
 
 func (lsm *LSM) loadSSTs() error {
-	// TODO: iterate over directory
-	// TODO: call LoadIndex
-	// TODO: set lsm.ssts
-	// TODO: set nextSSTID
+	// TODO: get these in the right order (i.e. sort by filename)
+	files, err := ioutil.ReadDir(lsm.sstDir)
+	if err != nil {
+		return err
+	}
+	for _, file := range files {
+		kvFile, err := NewKVFile(file.Name())
+		if err != nil {
+			return err
+		}
+		sst, err := NewSST(kvFile)
+		if err != nil {
+			return err
+		}
+		if err := sst.LoadIndex(); err != nil {
+			return err
+		}
+		lsm.ssts = append(lsm.ssts, sst)
+	}
+	lsm.nextSSTID = len(lsm.ssts) // TODO: not valid once we do compaction
 	return nil
 }
 
@@ -111,7 +130,7 @@ func (lsm *LSM) flushMemtable() error {
 	// write new sst
 	name := fmt.Sprintf("%d.sst.gob", lsm.nextSSTID)
 	lsm.nextSSTID++
-	newSST, err := WriteSST(name, lsm.memtable)
+	newSST, err := WriteSST(path.Join(lsm.sstDir, name), lsm.memtable)
 	if err != nil {
 		return err
 	}
