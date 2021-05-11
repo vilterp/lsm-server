@@ -20,7 +20,7 @@ type KVFile struct {
 }
 
 func NewKVFile(path string) (*KVFile, error) {
-	file, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE, 0o644)
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0o644)
 	if err != nil {
 		return nil, err
 	}
