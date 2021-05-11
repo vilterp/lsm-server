@@ -14,12 +14,12 @@ type kvServer struct {
 	contents map[string]string
 	mutex sync.Mutex
 
-	wal *server.KVWriter
+	wal *server.KVFile
 
 	mux http.ServeMux
 }
 
-func NewKVServer(walWriter *server.KVWriter) *kvServer {
+func NewKVServer(walWriter *server.KVFile) *kvServer {
 	s := &kvServer{
 		wal: walWriter,
 		contents: map[string]string{},
@@ -72,6 +72,29 @@ func (k *kvServer) handleGet(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
+func (k *kvServer) loadFromWAL() (int, error) {
+	k.mutex.Lock()
+	defer k.mutex.Unlock()
+
+	read := 0
+
+	reader := k.wal.GetReader()
+	for {
+		kvPair, err := reader.Next()
+		if err != nil {
+			return 0, err
+		}
+		if kvPair == nil {
+			break
+		}
+
+		// TODO: don't stringify
+		k.contents[string(kvPair.Key)] = string(kvPair.Value)
+		read++
+	}
+	return read, nil
+}
+
 func (k *kvServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	log.Printf("%s %s", req.Method, req.RequestURI)
 	k.mux.ServeHTTP(w, req)
@@ -94,11 +117,16 @@ func main() {
 	}
 
 	// construct server
-	walWriter, err := server.NewKVWriter(file)
+	walFile, err := server.NewKVFile(file)
 	if err != nil {
 		log.Fatal("error opening wal:", err)
 	}
-	serv := NewKVServer(walWriter)
+	serv := NewKVServer(walFile)
+	read, err := serv.loadFromWAL()
+	if err != nil {
+		log.Fatal("error reading log:", err)
+	}
+	log.Printf("read %d keys on startup", read)
 
 	log.Printf("listening on %s:%s", host, port)
 	if err := http.ListenAndServe(fmt.Sprintf("%s:%s", host, port), serv); err != nil {
