@@ -48,7 +48,7 @@ func (sst *SST) ReadKey(key []byte) ([]byte, bool, error) {
 	if err := sst.reader.Seek(index); err != nil {
 		return nil, false, err
 	}
-	kvPair, err := sst.reader.Next()
+	kvPair, _, err := sst.reader.Next()
 	if err != nil {
 		return nil, false, err
 	}
