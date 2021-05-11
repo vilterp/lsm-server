@@ -10,7 +10,7 @@ import (
 
 type kvServer struct {
 	contents map[string]string
-	mutex sync.Mutex
+	mutex    sync.Mutex
 
 	mux http.ServeMux
 }
@@ -18,7 +18,7 @@ type kvServer struct {
 func NewKVServer() *kvServer {
 	s := &kvServer{
 		contents: map[string]string{},
-		mux: http.ServeMux{},
+		mux:      http.ServeMux{},
 	}
 	s.mux.HandleFunc("/set", s.handleSet)
 	s.mux.HandleFunc("/get", s.handleGet)
@@ -41,6 +41,7 @@ func (k *kvServer) handleSet(w http.ResponseWriter, req *http.Request) {
 	for key, value := range query {
 		k.contents[key] = value[0]
 	}
+	w.WriteHeader(http.StatusCreated)
 }
 
 func (k *kvServer) handleGet(w http.ResponseWriter, req *http.Request) {
