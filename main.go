@@ -12,7 +12,7 @@ import (
 
 type kvServer struct {
 	contents map[string]string
-	mutex sync.Mutex
+	mutex    sync.Mutex
 
 	wal *server.KVFile
 
@@ -21,9 +21,9 @@ type kvServer struct {
 
 func NewKVServer(walWriter *server.KVFile) *kvServer {
 	s := &kvServer{
-		wal: walWriter,
+		wal:      walWriter,
 		contents: map[string]string{},
-		mux: http.ServeMux{},
+		mux:      http.ServeMux{},
 	}
 	s.mux.HandleFunc("/set", s.handleSet)
 	s.mux.HandleFunc("/get", s.handleGet)
@@ -84,7 +84,10 @@ func (k *kvServer) loadFromWAL() (int, error) {
 
 	read := 0
 
-	reader := k.wal.GetReader()
+	reader, err := k.wal.GetReader()
+	if err != nil {
+		return 0, err
+	}
 	for {
 		kvPair, err := reader.Next()
 		if err != nil {
