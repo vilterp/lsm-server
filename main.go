@@ -67,7 +67,7 @@ func (k *kvServer) handleGet(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	if _, err := fmt.Fprintln(w, value); err != nil {
+	if _, err := fmt.Fprintln(w, string(value)); err != nil {
 		log.Println("error writing response:", err)
 	}
 }
