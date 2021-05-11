@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/gob"
 	"fmt"
 	"log"
 	"net/http"
@@ -11,18 +12,26 @@ import (
 type kvServer struct {
 	contents map[string]string
 	mutex    sync.Mutex
+	encoder  *gob.Encoder
 
 	mux http.ServeMux
 }
 
-func NewKVServer() *kvServer {
+func NewKVServer(file *os.File) *kvServer {
+	encoder := gob.NewEncoder(file)
 	s := &kvServer{
 		contents: map[string]string{},
 		mux:      http.ServeMux{},
+		encoder:  encoder,
 	}
 	s.mux.HandleFunc("/set", s.handleSet)
 	s.mux.HandleFunc("/get", s.handleGet)
 	return s
+}
+
+type KVPair struct {
+	Key   string
+	Value string
 }
 
 func (k *kvServer) handleSet(w http.ResponseWriter, req *http.Request) {
@@ -40,6 +49,15 @@ func (k *kvServer) handleSet(w http.ResponseWriter, req *http.Request) {
 	query := req.URL.Query()
 	for key, value := range query {
 		k.contents[key] = value[0]
+
+		if err := k.encoder.Encode(KVPair{
+			Key:   key,
+			Value: value[0],
+		}); err != nil {
+			http.Error(w, fmt.Sprintf("error writing key"), http.StatusInternalServerError)
+			log.Println("error writing key", err)
+			return
+		}
 	}
 	w.WriteHeader(http.StatusCreated)
 }
@@ -66,8 +84,6 @@ func (k *kvServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 }
 
 func main() {
-	server := NewKVServer()
-
 	host, found := os.LookupEnv("HOST")
 	if !found {
 		host = "localhost"
@@ -76,6 +92,17 @@ func main() {
 	if !found {
 		port = "9999"
 	}
+	filePath, found := os.LookupEnv("FILE")
+	if !found {
+		filePath = "data.gob"
+	}
+
+	file, err := os.OpenFile(filePath, os.O_RDWR|os.O_APPEND|os.O_CREATE, 0777)
+	if err != nil {
+		log.Fatal("error opening file", err)
+	}
+
+	server := NewKVServer(file)
 
 	log.Printf("listening on %s:%s", host, port)
 	if err := http.ListenAndServe(fmt.Sprintf("%s:%s", host, port), server); err != nil {
