@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"log"
 	"path"
+	"strings"
 	"sync"
 )
 
@@ -41,7 +42,10 @@ func (lsm *LSM) loadSSTs() error {
 		return err
 	}
 	for _, file := range files {
-		kvFile, err := NewKVFile(file.Name())
+		if !strings.HasSuffix(file.Name(), "sst.gob") {
+			continue
+		}
+		kvFile, err := NewKVFile(path.Join(lsm.sstDir, file.Name()))
 		if err != nil {
 			return err
 		}
