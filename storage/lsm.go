@@ -12,7 +12,7 @@ import (
 type LSM struct {
 	lock sync.Mutex
 
-	sstDir    string
+	dataDir   string
 	nextSSTID int
 
 	wal      *KVFile
@@ -20,10 +20,14 @@ type LSM struct {
 	ssts     []*SST // newest last
 }
 
-func NewLSM(wal *KVFile, sstDir string) (*LSM, error) {
+func NewLSM(dataDir string) (*LSM, error) {
+	wal, err := NewKVFile(path.Join(dataDir, "wal.kv"))
+	if err != nil {
+		return nil, err
+	}
 	lsm := &LSM{
 		wal:      wal,
-		sstDir:   sstDir,
+		dataDir:  dataDir,
 		memtable: map[string][]byte{},
 	}
 	if err := lsm.loadWALIntoMemtable(); err != nil {
@@ -37,7 +41,7 @@ func NewLSM(wal *KVFile, sstDir string) (*LSM, error) {
 
 func (lsm *LSM) loadSSTs() error {
 	// TODO: get these in the right order (i.e. sort by filename)
-	files, err := ioutil.ReadDir(lsm.sstDir)
+	files, err := ioutil.ReadDir(lsm.dataDir)
 	if err != nil {
 		return err
 	}
@@ -45,7 +49,7 @@ func (lsm *LSM) loadSSTs() error {
 		if !strings.HasSuffix(file.Name(), "sst.kv") {
 			continue
 		}
-		kvFile, err := NewKVFile(path.Join(lsm.sstDir, file.Name()))
+		kvFile, err := NewKVFile(path.Join(lsm.dataDir, file.Name()))
 		if err != nil {
 			return err
 		}
@@ -134,7 +138,7 @@ func (lsm *LSM) flushMemtable() error {
 	// write new sst
 	name := fmt.Sprintf("%d.sst.kv", lsm.nextSSTID)
 	lsm.nextSSTID++
-	newSST, err := WriteSST(path.Join(lsm.sstDir, name), lsm.memtable)
+	newSST, err := WriteSST(path.Join(lsm.dataDir, name), lsm.memtable)
 	if err != nil {
 		return err
 	}

@@ -5,7 +5,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"path"
 
 	"github.com/vilterp/kv-server/server"
 	"github.com/vilterp/kv-server/storage"
@@ -27,11 +26,7 @@ func main() {
 	}
 
 	// construct server
-	walFile, err := storage.NewKVFile(path.Join(dataDir, "wal.kv"))
-	if err != nil {
-		log.Fatal("error opening wal: ", err)
-	}
-	lsm, err := storage.NewLSM(walFile, dataDir)
+	lsm, err := storage.NewLSM(dataDir)
 	if err != nil {
 		log.Fatal("error creating LSM: ", err)
 	}
