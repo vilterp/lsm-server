@@ -31,10 +31,10 @@ func NewLSM(dataDir string) (*LSM, error) {
 		memtable: map[string][]byte{},
 	}
 	if err := lsm.loadWALIntoMemtable(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("loading WAL: %v", err)
 	}
 	if err := lsm.loadSSTs(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("loading SSTs: %v", err)
 	}
 	return lsm, nil
 }
@@ -68,20 +68,27 @@ func (lsm *LSM) loadSSTs() error {
 		if !strings.HasSuffix(file.Name(), "sst.kv") {
 			continue
 		}
-		kvFile, err := NewKVFile(path.Join(lsm.dataDir, file.Name()))
-		if err != nil {
-			return err
+		if err := lsm.loadSST(file.Name()); err != nil {
+			return fmt.Errorf("loading %s: %v", file.Name(), err)
 		}
-		sst, err := NewSST(kvFile)
-		if err != nil {
-			return err
-		}
-		if err := sst.LoadIndex(); err != nil {
-			return err
-		}
-		lsm.ssts = append(lsm.ssts, sst)
 	}
 	lsm.nextSSTID = len(lsm.ssts) // TODO: not valid once we do compaction
+	return nil
+}
+
+func (lsm *LSM) loadSST(file string) error {
+	kvFile, err := NewKVFile(path.Join(lsm.dataDir, file))
+	if err != nil {
+		return err
+	}
+	sst, err := NewSST(kvFile)
+	if err != nil {
+		return err
+	}
+	if err := sst.LoadIndex(); err != nil {
+		return fmt.Errorf("loading index: %v", err)
+	}
+	lsm.ssts = append(lsm.ssts, sst)
 	return nil
 }
 
