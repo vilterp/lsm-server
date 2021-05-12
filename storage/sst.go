@@ -1,4 +1,4 @@
-package server
+package storage
 
 type SST struct {
 	file   *KVFile
@@ -7,7 +7,6 @@ type SST struct {
 }
 
 func NewSST(file *KVFile) (*SST, error) {
-	// TODO: read in index?
 	reader, err := file.GetReader()
 	if err != nil {
 		return nil, err
@@ -19,22 +18,21 @@ func NewSST(file *KVFile) (*SST, error) {
 	}, nil
 }
 
+// LoadIndex populates the index.
 // TODO: write the index at the beginning so we don't have to read the whole file like this?
 func (sst *SST) LoadIndex() error {
 	if err := sst.reader.Seek(0); err != nil {
 		return err
 	}
-	pos := int64(0)
 	for {
-		pair, size, err := sst.reader.Next()
+		pair, err := sst.reader.Next()
 		if err != nil {
 			return err
 		}
 		if pair == nil {
 			break
 		}
-		sst.index[string(pair.Key)] = pos
-		pos += size
+		sst.index[string(pair.Key)] = int64(pair.OnDiskOffset)
 	}
 	return nil
 }
@@ -48,7 +46,7 @@ func (sst *SST) ReadKey(key []byte) ([]byte, bool, error) {
 	if err := sst.reader.Seek(index); err != nil {
 		return nil, false, err
 	}
-	kvPair, _, err := sst.reader.Next()
+	kvPair, err := sst.reader.Next()
 	if err != nil {
 		return nil, false, err
 	}

@@ -1,4 +1,4 @@
-package server
+package storage
 
 import (
 	"fmt"
@@ -71,7 +71,7 @@ func (lsm *LSM) loadWALIntoMemtable() error {
 		return err
 	}
 	for {
-		pair, _, err := reader.Next()
+		pair, err := reader.Next()
 		if err != nil {
 			return err
 		}
