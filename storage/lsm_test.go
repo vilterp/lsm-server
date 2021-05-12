@@ -2,12 +2,22 @@ package storage
 
 import (
 	"fmt"
+	"os"
 	"testing"
 )
 
 func TestLSM(t *testing.T) {
+	dataDir := "../testdata"
+
+	if err := os.RemoveAll(dataDir); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(dataDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+
 	// writes
-	writeLSM, err := NewLSM("../testdata")
+	writeLSM, err := NewLSM(dataDir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -20,7 +30,7 @@ func TestLSM(t *testing.T) {
 		}
 	}
 
-	readLSM, err := NewLSM("../testdata")
+	readLSM, err := NewLSM(dataDir)
 	if err != nil {
 		t.Fatal(err)
 	}
