@@ -103,7 +103,8 @@ func WriteSST(name string, memtable map[string][]byte) (*SST, error) {
 
 	// write keys
 	// TODO: sort? lol
-	for key, value := range memtable {
+	for _, key := range keys {
+		value := memtable[key]
 		startPos, err := kvFile.AppendKVPair([]byte(key), value)
 		if err != nil {
 			return nil, err
