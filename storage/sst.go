@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+
+	"github.com/psampaz/gods/maps/treemap"
 )
 
 type SST struct {
@@ -64,7 +66,7 @@ func (sst *SST) ReadKey(key []byte) ([]byte, bool, error) {
 	return kvPair.Value, true, nil
 }
 
-func WriteSST(name string, memtable map[string][]byte) (*SST, error) {
+func WriteSST(name string, memtable *treemap.Map) (*SST, error) {
 	kvFile, err := NewKVFile(name)
 	if err != nil {
 		return nil, err
@@ -74,21 +76,19 @@ func WriteSST(name string, memtable map[string][]byte) (*SST, error) {
 		return nil, err
 	}
 
-	// get stable order for keys
-	var keys []string
-	for key, _ := range memtable {
-		keys = append(keys, key)
-	}
-
 	// get offsets
 	offsets := map[string]int{}
 	pos := 0
-	for _, key := range keys {
+
+	it := memtable.Iterator()
+	for it.Next() {
+		key := it.Key().(string)
+		value := it.Value().([]byte)
+
 		offsets[key] = pos
 		// TODO: DRY up
 		pos += binary.Size(uint32(len(key)))
 		pos += len(key)
-		value := memtable[key]
 		pos += binary.Size(uint32(len(value)))
 		pos += len(value)
 	}
@@ -102,9 +102,11 @@ func WriteSST(name string, memtable map[string][]byte) (*SST, error) {
 	}
 
 	// write keys
-	// TODO: sort? lol
-	for _, key := range keys {
-		value := memtable[key]
+	it2 := memtable.Iterator()
+	for it2.Next() {
+		key := it2.Key().(string)
+		value := it2.Value().([]byte)
+
 		startPos, err := kvFile.AppendKVPair([]byte(key), value)
 		if err != nil {
 			return nil, err
