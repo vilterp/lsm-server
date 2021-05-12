@@ -30,6 +30,7 @@ func TestLSM(t *testing.T) {
 		}
 	}
 
+	// reads
 	readLSM, err := NewLSM(dataDir)
 	if err != nil {
 		t.Fatal(err)
