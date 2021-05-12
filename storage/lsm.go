@@ -7,6 +7,8 @@ import (
 	"path"
 	"strings"
 	"sync"
+
+	"github.com/psampaz/gods/maps/treemap"
 )
 
 type LSM struct {
@@ -16,7 +18,7 @@ type LSM struct {
 	nextSSTID int
 
 	wal      *KVFile
-	memtable map[string][]byte
+	memtable *treemap.Map
 	ssts     []*SST // newest last
 }
 
@@ -28,7 +30,7 @@ func NewLSM(dataDir string) (*LSM, error) {
 	lsm := &LSM{
 		wal:      wal,
 		dataDir:  dataDir,
-		memtable: map[string][]byte{},
+		memtable: treemap.NewWithStringComparator(),
 	}
 	if err := lsm.loadWALIntoMemtable(); err != nil {
 		return nil, fmt.Errorf("loading WAL: %v", err)
@@ -54,7 +56,7 @@ func (lsm *LSM) EntriesStats() EntriesStats {
 	}
 	return EntriesStats{
 		SSTEntries:      sstEntries,
-		MemtableEntries: len(lsm.memtable),
+		MemtableEntries: lsm.memtable.Size(),
 	}
 }
 
@@ -108,7 +110,7 @@ func (lsm *LSM) loadWALIntoMemtable() error {
 		if pair == nil {
 			break
 		}
-		lsm.memtable[string(pair.Key)] = pair.Value
+		lsm.memtable.Put(string(pair.Key), pair.Value)
 	}
 	return nil
 }
@@ -117,9 +119,9 @@ func (lsm *LSM) Get(key []byte) ([]byte, bool, error) {
 	lsm.lock.Lock()
 	defer lsm.lock.Unlock()
 
-	memValue, ok := lsm.memtable[string(key)]
+	memValue, ok := lsm.memtable.Get(string(key))
 	if ok {
-		return memValue, true, nil
+		return memValue.([]byte), true, nil
 	}
 	// iterate from newest to oldest
 	for i := len(lsm.ssts) - 1; i >= 0; i-- {
@@ -144,8 +146,8 @@ func (lsm *LSM) Put(key []byte, value []byte) error {
 	if _, err := lsm.wal.AppendKVPair(key, value); err != nil {
 		return err
 	}
-	lsm.memtable[string(key)] = value
-	if len(lsm.memtable) > MemtableSizeThreshold {
+	lsm.memtable.Put(string(key), value)
+	if lsm.memtable.Size() > MemtableSizeThreshold {
 		// TODO: maybe this should be done async, and log errors?
 		if err := lsm.flushMemtable(); err != nil {
 			return err
@@ -171,7 +173,7 @@ func (lsm *LSM) flushMemtable() error {
 	lsm.ssts = append(lsm.ssts, newSST)
 
 	// clear the memtable
-	lsm.memtable = map[string][]byte{}
+	lsm.memtable.Clear()
 	if err := lsm.wal.Truncate(); err != nil {
 		return err
 	}
