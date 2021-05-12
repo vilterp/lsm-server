@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/psampaz/gods/maps/treemap"
+	"github.com/emirpasic/gods/maps/treemap"
 )
 
 type SST struct {

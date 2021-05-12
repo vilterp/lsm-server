@@ -8,7 +8,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/psampaz/gods/maps/treemap"
+	"github.com/emirpasic/gods/maps/treemap"
 )
 
 type LSM struct {
