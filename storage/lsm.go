@@ -42,7 +42,7 @@ func (lsm *LSM) loadSSTs() error {
 		return err
 	}
 	for _, file := range files {
-		if !strings.HasSuffix(file.Name(), "sst.gob") {
+		if !strings.HasSuffix(file.Name(), "sst.kv") {
 			continue
 		}
 		kvFile, err := NewKVFile(path.Join(lsm.sstDir, file.Name()))
@@ -92,7 +92,7 @@ func (lsm *LSM) Get(key []byte) ([]byte, bool, error) {
 		return memValue, true, nil
 	}
 	// iterate from newest to oldest
-	for i := len(lsm.ssts) - 1; i <= 0; i-- {
+	for i := len(lsm.ssts) - 1; i >= 0; i-- {
 		sst := lsm.ssts[i]
 		value, found, err := sst.ReadKey(key)
 		if err != nil {
@@ -132,7 +132,7 @@ func (lsm *LSM) doFlushMemtable() {
 
 func (lsm *LSM) flushMemtable() error {
 	// write new sst
-	name := fmt.Sprintf("%d.sst.gob", lsm.nextSSTID)
+	name := fmt.Sprintf("%d.sst.kv", lsm.nextSSTID)
 	lsm.nextSSTID++
 	newSST, err := WriteSST(path.Join(lsm.sstDir, name), lsm.memtable)
 	if err != nil {
