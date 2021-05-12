@@ -39,6 +39,25 @@ func NewLSM(dataDir string) (*LSM, error) {
 	return lsm, nil
 }
 
+type EntriesStats struct {
+	MemtableEntries int
+	SSTEntries      int
+}
+
+func (lsm *LSM) EntriesStats() EntriesStats {
+	lsm.lock.Lock()
+	defer lsm.lock.Unlock()
+
+	sstEntries := 0
+	for _, sst := range lsm.ssts {
+		sstEntries += sst.NumEntries()
+	}
+	return EntriesStats{
+		SSTEntries:      sstEntries,
+		MemtableEntries: len(lsm.memtable),
+	}
+}
+
 func (lsm *LSM) loadSSTs() error {
 	// TODO: get these in the right order (i.e. sort by filename)
 	files, err := ioutil.ReadDir(lsm.dataDir)

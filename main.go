@@ -30,6 +30,7 @@ func main() {
 	if err != nil {
 		log.Fatal("error creating LSM: ", err)
 	}
+	log.Printf("loaded: %+v", lsm.EntriesStats())
 	serv := server.NewKVServer(lsm)
 
 	log.Printf("listening on %s:%s", host, port)

@@ -18,6 +18,10 @@ func NewSST(file *KVFile) (*SST, error) {
 	}, nil
 }
 
+func (sst *SST) NumEntries() int {
+	return len(sst.index)
+}
+
 // LoadIndex populates the index.
 // TODO: write the index at the beginning so we don't have to read the whole file like this?
 func (sst *SST) LoadIndex() error {
