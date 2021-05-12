@@ -1,89 +1,17 @@
 package main
 
 import (
-	"encoding/gob"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
-	"sync"
+
+	"github.com/vilterp/kv-server/server"
+	"github.com/vilterp/kv-server/storage"
 )
 
-type kvServer struct {
-	contents map[string]string
-	mutex    sync.Mutex
-	encoder  *gob.Encoder
-
-	mux http.ServeMux
-}
-
-func NewKVServer(file *os.File) *kvServer {
-	encoder := gob.NewEncoder(file)
-	s := &kvServer{
-		contents: map[string]string{},
-		mux:      http.ServeMux{},
-		encoder:  encoder,
-	}
-	s.mux.HandleFunc("/set", s.handleSet)
-	s.mux.HandleFunc("/get", s.handleGet)
-	return s
-}
-
-type KVPair struct {
-	Key   string
-	Value string
-}
-
-func (k *kvServer) handleSet(w http.ResponseWriter, req *http.Request) {
-	k.mutex.Lock()
-	defer k.mutex.Unlock()
-
-	// validate the input: reject if more than one value for a key
-	for _, value := range req.URL.Query() {
-		if len(value) > 1 {
-			http.Error(w, fmt.Sprintf("multiple values for key"), http.StatusBadRequest)
-			return
-		}
-	}
-
-	query := req.URL.Query()
-	for key, value := range query {
-		k.contents[key] = value[0]
-
-		if err := k.encoder.Encode(KVPair{
-			Key:   key,
-			Value: value[0],
-		}); err != nil {
-			http.Error(w, fmt.Sprintf("error writing key"), http.StatusInternalServerError)
-			log.Println("error writing key", err)
-			return
-		}
-	}
-	w.WriteHeader(http.StatusCreated)
-}
-
-func (k *kvServer) handleGet(w http.ResponseWriter, req *http.Request) {
-	k.mutex.Lock()
-	defer k.mutex.Unlock()
-
-	keys := req.URL.Query()["key"]
-	if len(keys) != 1 {
-		http.Error(w, fmt.Sprintf("should pass exactly one keys"), http.StatusBadRequest)
-		return
-	}
-
-	_, err := fmt.Fprintln(w, k.contents[keys[0]])
-	if err != nil {
-		log.Println("error writing response:", err)
-	}
-}
-
-func (k *kvServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	log.Printf("%s %s", req.Method, req.RequestURI)
-	k.mux.ServeHTTP(w, req)
-}
-
 func main() {
+	// get env vars
 	host, found := os.LookupEnv("HOST")
 	if !found {
 		host = "localhost"
@@ -92,20 +20,21 @@ func main() {
 	if !found {
 		port = "9999"
 	}
-	filePath, found := os.LookupEnv("FILE")
+	dataDir, found := os.LookupEnv("DATA_DIR")
 	if !found {
-		filePath = "data.gob"
+		dataDir = "data"
 	}
 
-	file, err := os.OpenFile(filePath, os.O_RDWR|os.O_APPEND|os.O_CREATE, 0777)
+	// construct server
+	lsm, err := storage.NewLSM(dataDir)
 	if err != nil {
-		log.Fatal("error opening file", err)
+		log.Fatal("error creating LSM: ", err)
 	}
-
-	server := NewKVServer(file)
+	log.Printf("loaded: %+v", lsm.EntriesStats())
+	serv := server.NewKVServer(lsm)
 
 	log.Printf("listening on %s:%s", host, port)
-	if err := http.ListenAndServe(fmt.Sprintf("%s:%s", host, port), server); err != nil {
+	if err := http.ListenAndServe(fmt.Sprintf("%s:%s", host, port), serv); err != nil {
 		log.Fatal("error listening:", err)
 	}
 }
