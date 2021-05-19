@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"os"
 	"path"
 	"strings"
 	"sync"
@@ -23,6 +24,13 @@ type LSM struct {
 }
 
 func NewLSM(dataDir string) (*LSM, error) {
+	// create data dir if it doesn't exist
+	if _, err := os.Stat(dataDir); os.IsNotExist(err) {
+		if err := os.Mkdir(dataDir, 0700); err != nil {
+			return nil, err
+		}
+	}
+
 	wal, err := NewKVFile(path.Join(dataDir, "wal.kv"))
 	if err != nil {
 		return nil, err
