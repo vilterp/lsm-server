@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/vilterp/kv-server/server"
-	"github.com/vilterp/kv-server/storage"
+	"github.com/vilterp/lsm-server/server"
+	"github.com/vilterp/lsm-server/storage"
 )
 
 func main() {

@@ -1,4 +1,4 @@
-module github.com/vilterp/kv-server
+module github.com/vilterp/lsm-server
 
 go 1.15
 

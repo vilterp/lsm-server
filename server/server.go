@@ -5,7 +5,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/vilterp/kv-server/storage"
+	"github.com/vilterp/lsm-server/storage"
 )
 
 type kvServer struct {
@@ -27,12 +27,12 @@ func NewKVServer(lsm *storage.LSM) *kvServer {
 func (k *kvServer) handleSet(w http.ResponseWriter, req *http.Request) {
 	// validate the input: reject if more than one value for a key
 	if len(req.URL.Query()) != 1 {
-		http.Error(w, fmt.Sprintf("expecting exactly one key"), http.StatusBadRequest)
+		http.Error(w, "expecting exactly one key", http.StatusBadRequest)
 		return
 	}
 	for _, value := range req.URL.Query() {
 		if len(value) > 1 {
-			http.Error(w, fmt.Sprintf("multiple values for key"), http.StatusBadRequest)
+			http.Error(w, "multiple values for key", http.StatusBadRequest)
 			return
 		}
 	}
@@ -52,7 +52,7 @@ func (k *kvServer) handleSet(w http.ResponseWriter, req *http.Request) {
 func (k *kvServer) handleGet(w http.ResponseWriter, req *http.Request) {
 	keys := req.URL.Query()["key"]
 	if len(keys) != 1 {
-		http.Error(w, fmt.Sprintf("should pass exactly one keys"), http.StatusBadRequest)
+		http.Error(w, "should pass exactly one keys", http.StatusBadRequest)
 		return
 	}
 
